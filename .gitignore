@@ -1,3 +1,10 @@
 /bin/
 *.test
 coverage.out
+.env
+.env.*
+!.env.example
+*.db
+*.db-wal
+*.db-shm
+*.db.lock
