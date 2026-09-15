@@ -138,3 +138,51 @@ The opt-in smoke runner contacts Stripe test mode only.
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
+
+## Trusted approval continuation
+
+`Invoke` and the HTTP MCP endpoint accept no approval evidence. Embedded hosts
+can use `Resume(ctx, identity, call, approval, boundary)` for an existing request.
+`Approval` contains opaque evidence and the original Engine binding digest.
+Keep both outside client arguments, logs, and public responses.
+
+`Result.InvocationKey` and `Result.RequestDigest` expose canonical metadata to
+trusted hosts after preparation. Store these with the original decision and
+request. They identify the invocation; they do not grant execution authority.
+Do not reconstruct the Gateway envelope in private code.
+
+`Resume` performs these steps:
+
+1. Validate the request and current catalog outside a transaction.
+2. Reject an existing journal record or a changed request under the same ID.
+3. Require a fresh `REQUIRE_APPROVAL` decision with the saved binding digest.
+4. Run optional read validation outside the transaction.
+5. Call the host's `AuthorizationBoundary.WithinAuthorization` method.
+6. Recheck with evidence inside its transaction and require `ALLOW` with `UsedApproval`.
+7. Verify the returned lease binding, then call the configured journal's `Start`.
+8. Dispatch after that commit, then persist the known or uncertain outcome.
+
+The boundary must call its callback exactly once, synchronously. It supplies a
+transaction context to the Engine verifier. The verifier must consume the exact
+saved grant within that transaction. The boundary commits consumption, the
+returned journal record, invocation state, durable audit, and outbox together.
+Only a successful commit permits the journal issuer to create a lease. An
+uncertain commit returns an error and prevents dispatch.
+
+The host must check the invocation, tenant, current actor and agent access,
+connection version, approver authority, self-approval rule, and expiry. Recheck
+expiry and current authority before the dispatch CAS. The Engine, verifier,
+caller authorizer, and decision sink used inside the callback must make no
+network calls. The callback preserves transaction values and links cancellation
+to the original request. Resume limits its context to thirty seconds.
+
+A new ALLOW, DENY, revision, or data generation cannot substitute for the saved
+approval. A matching base approval permits read validation, not mutation.
+`Lease.Matches` checks only key and digest. `Store.Start` still authenticates the
+configured issuer and commits its state transition.
+
+Duplicate, skipped, unfinished, and late callback attempts cannot produce a new
+dispatch through Resume. Hosts must honor cancellation and cannot retain their
+transaction handles. Recovery must quarantine old authorized rows and preserve
+uncertain dispatched outcomes. This API does not implement Slack, private SQL,
+worker recovery, or grant retention.

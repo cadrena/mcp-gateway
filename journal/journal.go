@@ -71,6 +71,12 @@ func (Record) GoString() string { return "[journal record]" }
 // Issuers must remain private to their adapter instance.
 type Lease struct{ key, digest, signature [32]byte }
 
+// Matches checks binding only. It does not authenticate a lease or grant execution.
+// Store.Start must still authenticate the issuing adapter and commit its CAS.
+func (l Lease) Matches(key, digest [32]byte) bool {
+	return key != ([32]byte{}) && digest != ([32]byte{}) && l.key == key && l.digest == digest
+}
+
 func (Lease) String() string   { return "[journal lease]" }
 func (Lease) GoString() string { return "[journal lease]" }
 
