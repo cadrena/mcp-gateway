@@ -9,12 +9,15 @@ Only an ALLOW decision reaches the configured upstream tool.
 DENY, REQUIRE_APPROVAL, invalid input, and authorization errors prevent dispatch.
 
 The local test suite covers durable dispatch and the Stripe adapter with a mock provider.
-The live Stripe check and the public Gateway release remain open.
+The demo release gate uses the stateful local refund simulator.
+Live Stripe validation is a separate, optional integration check.
+The public Gateway release still requires the simulator acceptance and clean tagged consumption checks.
 Approval continuation still requires the later private workflow.
 
 ## Roadmap
 
-A Gateway release follows the live Stripe test and clean public consumption checks.
+A demo Gateway release follows the local simulator acceptance and clean public consumption checks.
+Simulation does not verify Stripe compatibility or payment processing.
 
 ## API
 
@@ -55,6 +58,23 @@ See [journal details](journal/README.md).
 Preserve the journal between runs. Do not use a new ID to retry an unknown outcome.
 Backups require the later restore procedure; this milestone does not prove safe recovery from an old backup.
 These controls prevent automatic replay. They do not promise exactly-once execution in an external service.
+
+## Local refund demo
+
+The local example uses a persistent simulated payment ledger. It needs no provider account or key.
+It exercises both MCP endpoints, the embedded Engine, and the durable Gateway journal.
+No real payment provider receives a request.
+
+```sh
+go run ./cmd/w2-local-demo --state-dir /absolute/private/demo-state
+```
+
+Keep the state directory between runs. A matching rerun must not deduct the balance again.
+The command checks allow, deny, approval requirements, access boundaries, and replay behavior.
+Approval cases stop without a refund; private approval continuation remains separate work.
+The output identifies every result as simulated.
+
+See [the simulator example](examples/refund-simulator/README.md) for its limits.
 
 ## Stripe test runner
 
