@@ -148,9 +148,12 @@ type Call struct {
 func (c Call) String() string { return "[gateway call]" }
 
 type Result struct {
-	Decision pe.DecisionResult
-	State    journal.State
-	Replayed bool
+	// InvocationKey and RequestDigest are trusted host metadata, not execution authority.
+	// The HTTP handler does not expose these fields to MCP clients.
+	InvocationKey, RequestDigest [32]byte
+	Decision                     pe.DecisionResult
+	State                        journal.State
+	Replayed                     bool
 	// Output is untrusted upstream content. It is absent for DENY and REQUIRE_APPROVAL.
 	Output *mcp.CallToolResult
 }
@@ -252,7 +255,7 @@ func (g *Gateway) Invoke(ctx context.Context, identity Identity, call Call) (Res
 		if record.Digest != digest {
 			return Result{}, ErrConflict
 		}
-		return Result{State: record.State, Replayed: true}, ErrReplay
+		return Result{State: record.State, Replayed: true, InvocationKey: key, RequestDigest: digest}, ErrReplay
 	}
 	if !errors.Is(err, journal.ErrNotFound) {
 		return Result{}, ErrJournal
@@ -269,7 +272,7 @@ func (g *Gateway) Invoke(ctx context.Context, identity Identity, call Call) (Res
 	if err != nil {
 		return Result{}, ErrEngine
 	}
-	result := Result{Decision: response.Result()}
+	result := Result{Decision: response.Result(), InvocationKey: key, RequestDigest: digest}
 	switch result.Decision.Decision() {
 	case pe.DecisionDeny, pe.DecisionRequireApproval:
 		return result, nil
@@ -290,6 +293,11 @@ func (g *Gateway) Invoke(ctx context.Context, identity Identity, call Call) (Res
 		}
 		return result, ErrJournal
 	}
+	return g.dispatch(ctx, p, key, lease, result)
+}
+
+// dispatch remains private: callers must first commit authorization.
+func (g *Gateway) dispatch(ctx context.Context, p prepared, key [32]byte, lease journal.Lease, result Result) (Result, error) {
 	result.State = journal.Authorized
 	if err := ctx.Err(); err != nil {
 		return result, err
