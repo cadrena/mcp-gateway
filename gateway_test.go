@@ -151,6 +151,9 @@ func TestInvokeUsesRealPolicyAndCustomerAccess(t *testing.T) {
 			if result.Decision.Decision() != tc.decision || u.calls != tc.calls || len(checker.seen) != 1 {
 				t.Fatalf("decision=%v calls=%d checks=%d", result.Decision.Decision(), u.calls, len(checker.seen))
 			}
+			if result.DecisionDuration <= 0 {
+				t.Fatal("successful Engine check did not report its duration")
+			}
 			if result.Decision.RevisionID() != revision || result.Decision.DataGeneration() != 1 || result.Decision.SlotGeneration() != 1 {
 				t.Fatal("result lost the real Engine snapshot")
 			}

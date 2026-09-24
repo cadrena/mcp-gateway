@@ -129,7 +129,7 @@ func TestDurableInvokeCommitsBeforeDispatchAndRejectsReplay(t *testing.T) {
 		t.Fatal("successful result was not persisted")
 	}
 	result, err = g.Invoke(context.Background(), id, durableCall())
-	if !errors.Is(err, gw.ErrReplay) || !result.Replayed || result.State != journal.Completed || u.calls.Load() != 1 {
+	if !errors.Is(err, gw.ErrReplay) || !result.Replayed || result.State != journal.Completed || result.DecisionDuration != 0 || u.calls.Load() != 1 {
 		t.Fatal("repeated invocation created another dispatch")
 	}
 	changed := durableCall()

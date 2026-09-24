@@ -152,8 +152,11 @@ type Result struct {
 	// The HTTP handler does not expose these fields to MCP clients.
 	InvocationKey, RequestDigest [32]byte
 	Decision                     pe.DecisionResult
-	State                        journal.State
-	Replayed                     bool
+	// DecisionDuration measures only the Engine Check call. It excludes upstream
+	// validation, journal work, and tool execution.
+	DecisionDuration time.Duration
+	State            journal.State
+	Replayed         bool
 	// Output is untrusted upstream content. It is absent for DENY and REQUIRE_APPROVAL.
 	Output *mcp.CallToolResult
 }
@@ -268,11 +271,13 @@ func (g *Gateway) Invoke(ctx context.Context, identity Identity, call Call) (Res
 	if err != nil {
 		return Result{}, ErrInput
 	}
+	decisionStarted := time.Now()
 	response, err := g.engine.Check(ctx, caller, request)
+	decisionDuration := time.Since(decisionStarted)
 	if err != nil {
 		return Result{}, ErrEngine
 	}
-	result := Result{Decision: response.Result(), InvocationKey: key, RequestDigest: digest}
+	result := Result{Decision: response.Result(), DecisionDuration: decisionDuration, InvocationKey: key, RequestDigest: digest}
 	switch result.Decision.Decision() {
 	case pe.DecisionDeny, pe.DecisionRequireApproval:
 		return result, nil
